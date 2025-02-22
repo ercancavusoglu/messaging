@@ -1,0 +1,6 @@
+.env
+tmp
+vendor
+log
+.idea
+.DS_Store
