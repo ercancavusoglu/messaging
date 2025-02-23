@@ -79,9 +79,3 @@ func (l *logrusAdapter) Fatal(args ...interface{}) {
 func (l *logrusAdapter) Fatalf(format string, args ...interface{}) {
 	l.logger.Fatalf(format, args...)
 }
-
-func (l *logrusAdapter) WithFields(fields map[string]interface{}) ports.Logger {
-	return &logrusAdapter{
-		logger: l.logger.WithFields(fields).Logger,
-	}
-}
