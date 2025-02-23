@@ -29,11 +29,7 @@ func (s *messageService) GetSendedMessages() ([]*domain.Message, error) {
 	return s.repo.GetByStatus(domain.StatusSent)
 }
 
-func (s *messageService) QueueMessage(msg *domain.Message) error {
+func (s *messageService) Publish(msg *domain.Message) error {
 	s.eventBus.Publish(domain.NewMessageQueuedEvent(msg))
 	return nil
-}
-
-func (s *messageService) List() ([]*domain.Message, error) {
-	return s.repo.GetByStatus(domain.StatusSent)
 }

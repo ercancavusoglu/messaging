@@ -21,6 +21,9 @@ func NewLogrusAdapter(logPath string) (ports.Logger, error) {
 		TimestampFormat: time.RFC3339,
 	})
 
+	// Set log level to Debug
+	logger.SetLevel(logrus.DebugLevel)
+
 	// Ensure log directory exists
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		return nil, err

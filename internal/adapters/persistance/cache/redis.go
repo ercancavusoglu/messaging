@@ -7,11 +7,16 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-type RedisAdapter struct {
-	client *redis.Client
+type RedisClient interface {
+	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
+	Get(ctx context.Context, key string) *redis.StringCmd
 }
 
-func NewRedisAdapter(client *redis.Client) *RedisAdapter {
+type RedisAdapter struct {
+	client RedisClient
+}
+
+func NewRedisAdapter(client RedisClient) *RedisAdapter {
 	return &RedisAdapter{
 		client: client,
 	}

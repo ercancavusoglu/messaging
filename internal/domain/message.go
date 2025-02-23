@@ -16,6 +16,7 @@ type Message struct {
 	Content   string        `json:"content"`
 	Status    MessageStatus `json:"status"`
 	MessageID string        `json:"message_id"`
+	Provider  string        `json:"provider"`
 	CreatedAt time.Time     `json:"created_at"`
 	SentAt    *time.Time    `json:"sent_at,omitempty"`
 }

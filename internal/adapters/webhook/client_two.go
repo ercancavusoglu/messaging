@@ -2,23 +2,35 @@ package webhook
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/ercancavusoglu/messaging/internal/domain"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/ercancavusoglu/messaging/internal/domain"
 )
 
 type ClientTwo struct {
 	url    string
 	apiKey string
+	client *http.Client
 }
 
 func NewClientTwo(url, apiKey string) *ClientTwo {
+	// SSL sertifika doğrulamasını devre dışı bırakan özel HTTP istemcisi
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	client := &http.Client{Transport: tr}
+
 	return &ClientTwo{
 		url:    url,
 		apiKey: apiKey,
+		client: client,
 	}
 }
 
@@ -26,8 +38,9 @@ func (c *ClientTwo) SendMessage(to, content string) (*domain.WebhookResponse, er
 	log.Printf("[Webhook] Sending message [to: %s, content: %s]", to, content)
 
 	payload := map[string]string{
-		"to":      to,
-		"content": content,
+		"to":       to,
+		"content":  content,
+		"provider": "client_two",
 	}
 
 	jsonPayload, err := json.Marshal(payload)
@@ -48,7 +61,7 @@ func (c *ClientTwo) SendMessage(to, content string) (*domain.WebhookResponse, er
 	}
 
 	log.Printf("[Webhook] Sending request to: %s", c.url)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
@@ -71,6 +84,7 @@ func (c *ClientTwo) SendMessage(to, content string) (*domain.WebhookResponse, er
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
+	response.Provider = "client_two"
 	log.Printf("[Webhook] Decoded response: %+v", response)
 	return &response, nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/ercancavusoglu/messaging/internal/adapters/persistance/postgres"
 	"github.com/ercancavusoglu/messaging/internal/adapters/scheduler"
 	"github.com/ercancavusoglu/messaging/internal/adapters/webhook"
+	"github.com/ercancavusoglu/messaging/internal/domain"
 	"github.com/ercancavusoglu/messaging/internal/ports"
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
@@ -33,11 +34,11 @@ type Container struct {
 }
 
 func NewContainer() (*Container, error) {
-	// Initialize logger first
 	logPath := os.Getenv("LOG_PATH")
 	if logPath == "" {
-		logPath = "consumer.log"
+		logPath = "logs/dev.log"
 	}
+
 	logger, err := logrus.NewLogrusAdapter(logPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
@@ -86,13 +87,28 @@ func NewContainer() (*Container, error) {
 	// Initialize repositories and services
 	logger.Info("Initializing services...")
 	messageRepo := postgres.NewMessageRepository(db)
-	webhookClient := webhook.NewClient(os.Getenv("WEBHOOK_URL"), os.Getenv("WEBHOOK_TOKEN"))
+
+	// Initialize webhook clients
+	webhookClientOne := webhook.NewClient(os.Getenv("WEBHOOK_URL_ONE"), os.Getenv("WEBHOOK_TOKEN_ONE"))
+	webhookClientTwo := webhook.NewClientTwo(os.Getenv("WEBHOOK_URL_TWO"), os.Getenv("WEBHOOK_TOKEN_TWO"))
+	webhookClient := webhook.NewRetryableWebhookClient(
+		[]ports.WebhookClient{
+			webhookClientOne,
+			webhookClientTwo,
+		},
+		2, // maxRetries
+	)
+
 	cacheClient := cache.NewRedisAdapter(rdb)
 	messageSvc := NewMessageService(messageRepo, webhookClient, cacheClient, eventBus)
 	messageScheduler := scheduler.NewSchedulerService(messageSvc, 2*time.Second, logger)
 	messageConsumer := consumer.NewConsumer(webhookClient, messageRepo, cacheClient, eventBus, 5, logger)
 
-	// Initialize HTTP server
+	eventBus.Subscribe(domain.EventMessageSent, func(event ports.Event) error {
+		logger.Infof("[EventHandler] Handling message.sent event: %+v", event)
+		return nil
+	})
+
 	messageHandler := NewMessageHandler(messageSvc, messageScheduler)
 	router := NewRouter(messageHandler)
 	server := &http.Server{
@@ -113,20 +129,17 @@ func NewContainer() (*Container, error) {
 }
 
 func (c *Container) Start(ctx context.Context) error {
-	// Start consumer
 	if err := c.Consumer.Start(); err != nil {
 		c.Logger.Errorf("[Container] Consumer error: %v", err)
 		return err
 	}
 
-	// Start scheduler
 	go func() {
 		if err := c.Scheduler.Start(ctx); err != nil {
 			c.Logger.Errorf("[Container] Scheduler error: %v", err)
 		}
 	}()
 
-	// Start HTTP server
 	go func() {
 		c.Logger.Infof("[Container] HTTP server listening on %s", c.Server.Addr)
 		if err := c.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -140,17 +153,14 @@ func (c *Container) Start(ctx context.Context) error {
 func (c *Container) Shutdown(ctx context.Context) error {
 	c.Logger.Info("[Container] Shutting down...")
 
-	// Stop consumer and scheduler
 	c.Consumer.Stop()
 	c.Scheduler.Stop()
 
-	// Shutdown HTTP server
 	if err := c.Server.Shutdown(ctx); err != nil {
 		c.Logger.Errorf("Failed to shutdown server: %v", err)
 		return fmt.Errorf("failed to shutdown server: %w", err)
 	}
 
-	// Close connections
 	if err := c.DB.Close(); err != nil {
 		c.Logger.Errorf("Failed to close database connection: %v", err)
 		return fmt.Errorf("failed to close database connection: %w", err)

@@ -74,9 +74,9 @@ func (s *SchedulerService) Start(ctx context.Context) error {
 				if msg.Status != domain.StatusPending {
 					continue
 				}
-				s.logger.Infof("[Scheduler] Queueing message ID: %d, Content: %s", msg.ID, msg.Content)
-				if err := s.messageService.QueueMessage(msg); err != nil {
-					s.logger.Errorf("[Scheduler] Error queueing message: %v", err)
+				s.logger.Infof("[Scheduler] Publishing message ID: %d, Content: %s", msg.ID, msg.Content)
+				if err := s.messageService.Publish(msg); err != nil {
+					s.logger.Errorf("[Scheduler] Error publishing message: %v", err)
 				}
 			}
 		}

@@ -3,16 +3,17 @@ package eventbus
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/ercancavusoglu/messaging/internal/domain"
 	"github.com/ercancavusoglu/messaging/internal/ports"
-	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 const (
-	exchangeName = "events"
-	queueName    = "events.queue"
+	exchangeName = "messaging.exchange"
+	queueName    = "messaging.queue"
 )
 
 type RabbitMQEventBus struct {
@@ -184,11 +185,19 @@ func (b *RabbitMQEventBus) Subscribe(eventName string, handler ports.EventHandle
 
 func (b *RabbitMQEventBus) Unsubscribe(eventName string, handler ports.EventHandler) {
 	handlers := b.handlers[eventName]
-	for i, h := range handlers {
-		if &h == &handler {
-			b.handlers[eventName] = append(handlers[:i], handlers[i+1:]...)
-			break
+	newHandlers := make([]ports.EventHandler, 0)
+	handlerPtr := fmt.Sprintf("%p", handler)
+
+	for _, h := range handlers {
+		if fmt.Sprintf("%p", h) != handlerPtr {
+			newHandlers = append(newHandlers, h)
 		}
+	}
+
+	if len(newHandlers) == 0 {
+		delete(b.handlers, eventName)
+	} else {
+		b.handlers[eventName] = newHandlers
 	}
 }
 

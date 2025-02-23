@@ -75,13 +75,13 @@ func (c *Consumer) processMessage(msg *domain.Message) error {
 	webhookResponse, err := c.webhookClient.SendMessage(msg.To, msg.Content)
 	if err != nil {
 		c.logger.Errorf("[Consumer] Failed to send message to webhook: %v", err)
-		if err := c.repo.UpdateStatus(msg.ID, domain.StatusFailed, ""); err != nil {
+		if err := c.repo.UpdateStatus(msg.ID, domain.StatusFailed, "", ""); err != nil {
 			c.logger.Errorf("[Consumer] Failed to update message status: %v", err)
 		}
 		return fmt.Errorf("failed to send message to webhook: %v", err)
 	}
 
-	if err := c.repo.UpdateStatus(msg.ID, domain.StatusSent, webhookResponse.MessageID); err != nil {
+	if err := c.repo.UpdateStatus(msg.ID, domain.StatusSent, webhookResponse.MessageID, webhookResponse.Provider); err != nil {
 		c.logger.Errorf("[Consumer] Failed to update message status: %v", err)
 		return fmt.Errorf("failed to update message status: %v", err)
 	}

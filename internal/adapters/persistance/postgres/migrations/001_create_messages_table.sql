@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS messages (
     content VARCHAR(160) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     message_id VARCHAR(36),
+    provider VARCHAR(50),
     sent_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ); 
