@@ -3,10 +3,10 @@ package consumer
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
+
 	"github.com/ercancavusoglu/messaging/internal/domain"
 	"github.com/ercancavusoglu/messaging/internal/ports"
-	"log"
-	"sync"
 )
 
 type Consumer struct {
@@ -17,9 +17,10 @@ type Consumer struct {
 	workers       int
 	workerPool    chan struct{}
 	wg            sync.WaitGroup
+	logger        ports.Logger
 }
 
-func NewConsumer(webhookClient ports.WebhookClient, repo ports.Repository, cache ports.Cache, eventBus ports.EventBus, workers int) *Consumer {
+func NewConsumer(webhookClient ports.WebhookClient, repo ports.Repository, cache ports.Cache, eventBus ports.EventBus, workers int, logger ports.Logger) *Consumer {
 	return &Consumer{
 		webhookClient: webhookClient,
 		repo:          repo,
@@ -27,21 +28,22 @@ func NewConsumer(webhookClient ports.WebhookClient, repo ports.Repository, cache
 		eventBus:      eventBus,
 		workers:       workers,
 		workerPool:    make(chan struct{}, workers),
+		logger:        logger,
 	}
 }
 
 func (c *Consumer) Start() error {
-	fmt.Println("[Consumer] Starting...")
+	c.logger.Info("[Consumer] Starting...")
 
 	c.eventBus.Subscribe(domain.EventMessageQueued, func(e ports.Event) error {
 		var evt domain.MessageQueuedEvent
 		if err := json.Unmarshal(e.(*domain.EventEnvelope).Data, &evt); err != nil {
-			fmt.Printf("[Consumer] Failed to unmarshal event: %v\n", err)
+			c.logger.Errorf("[Consumer] Failed to unmarshal event: %v", err)
 			return fmt.Errorf("failed to unmarshal event: %v", err)
 		}
 
 		msg := evt.Message
-		fmt.Printf("[Consumer] Processing queued message ID: %d, To: %s\n", msg.ID, msg.To)
+		c.logger.Infof("[Consumer] Processing queued message ID: %d, To: %s", msg.ID, msg.To)
 
 		c.workerPool <- struct{}{}
 		c.wg.Add(1)
@@ -53,7 +55,7 @@ func (c *Consumer) Start() error {
 			}()
 
 			if err := c.processMessage(msg); err != nil {
-				fmt.Printf("[Consumer] Failed to process message ID: %d, Error: %v\n", msg.ID, err)
+				c.logger.Errorf("[Consumer] Failed to process message ID: %d, Error: %v", msg.ID, err)
 			}
 		}()
 
@@ -68,33 +70,33 @@ func (c *Consumer) Stop() {
 }
 
 func (c *Consumer) processMessage(msg *domain.Message) error {
-	log.Printf("[Consumer] Processing message [id: %d]", msg.ID)
+	c.logger.Infof("[Consumer] Processing message [id: %d]", msg.ID)
 
 	webhookResponse, err := c.webhookClient.SendMessage(msg.To, msg.Content)
 	if err != nil {
-		log.Printf("[Consumer] Failed to send message to webhook: %v", err)
+		c.logger.Errorf("[Consumer] Failed to send message to webhook: %v", err)
 		if err := c.repo.UpdateStatus(msg.ID, domain.StatusFailed, ""); err != nil {
-			log.Printf("[Consumer] Failed to update message status: %v", err)
+			c.logger.Errorf("[Consumer] Failed to update message status: %v", err)
 		}
 		return fmt.Errorf("failed to send message to webhook: %v", err)
 	}
 
 	if err := c.repo.UpdateStatus(msg.ID, domain.StatusSent, webhookResponse.MessageID); err != nil {
-		log.Printf("[Consumer] Failed to update message status: %v", err)
+		c.logger.Errorf("[Consumer] Failed to update message status: %v", err)
 		return fmt.Errorf("failed to update message status: %v", err)
 	}
 
 	cacheKey := fmt.Sprintf("message:%d", msg.ID)
 	if err := c.cache.Set(cacheKey, nil); err != nil {
-		log.Printf("[Consumer] Failed to delete message from cache: %v", err)
+		c.logger.Errorf("[Consumer] Failed to delete message from cache: %v", err)
 	}
 
 	event := domain.NewMessageSentEvent(msg, webhookResponse.MessageID)
 
 	if err := c.eventBus.Publish(&event); err != nil {
-		log.Printf("[Consumer] Failed to publish message sent event: %v", err)
+		c.logger.Errorf("[Consumer] Failed to publish message sent event: %v", err)
 	}
 
-	log.Printf("[Consumer] Message processed successfully [id: %d]", msg.ID)
+	c.logger.Infof("[Consumer] Message processed successfully [id: %d]", msg.ID)
 	return nil
 }

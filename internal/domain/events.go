@@ -6,10 +6,9 @@ import (
 )
 
 const (
-	EventMessageSent     = "message.sent"
-	EventMessageFailed   = "message.failed"
-	EventMessageQueued   = "message.queued"
-	EventMessageDequeued = "message.dequeued"
+	EventMessageSent   = "message.sent"
+	EventMessageFailed = "message.failed"
+	EventMessageQueued = "message.queued"
 )
 
 type MessageSentEvent struct {
@@ -48,18 +47,6 @@ type MessageQueuedEvent struct {
 func NewMessageQueuedEvent(message *Message) MessageQueuedEvent {
 	return MessageQueuedEvent{
 		BaseEvent: NewBaseEvent(EventMessageQueued, strconv.FormatInt(message.ID, 10)),
-		Message:   message,
-	}
-}
-
-type MessageDequeuedEvent struct {
-	BaseEvent
-	Message *Message `json:"message"`
-}
-
-func NewMessageDequeuedEvent(message *Message) MessageDequeuedEvent {
-	return MessageDequeuedEvent{
-		BaseEvent: NewBaseEvent(EventMessageDequeued, strconv.FormatInt(message.ID, 10)),
 		Message:   message,
 	}
 }

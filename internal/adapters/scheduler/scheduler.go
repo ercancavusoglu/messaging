@@ -3,11 +3,11 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/ercancavusoglu/messaging/internal/domain"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/ercancavusoglu/messaging/internal/domain"
 	"github.com/ercancavusoglu/messaging/internal/ports"
 )
 
@@ -22,13 +22,15 @@ type SchedulerService struct {
 	running        atomic.Bool
 	stopChan       chan struct{}
 	mu             sync.Mutex
+	logger         ports.Logger
 }
 
-func NewSchedulerService(messageService ports.MessageService, interval time.Duration) *SchedulerService {
+func NewSchedulerService(messageService ports.MessageService, interval time.Duration, logger ports.Logger) *SchedulerService {
 	return &SchedulerService{
 		messageService: messageService,
 		interval:       interval,
 		stopChan:       make(chan struct{}),
+		logger:         logger,
 	}
 }
 
@@ -41,19 +43,19 @@ func (s *SchedulerService) Start(ctx context.Context) error {
 	s.stopChan = make(chan struct{})
 	s.mu.Unlock()
 
-	fmt.Println("[Scheduler] Starting...")
+	s.logger.Info("[Scheduler] Starting...")
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 
-	fmt.Println("[Scheduler] Ticker started")
+	s.logger.Info("[Scheduler] Ticker started")
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("[Scheduler] Stopping due to context cancellation")
+			s.logger.Info("[Scheduler] Stopping due to context cancellation")
 			s.running.Store(false)
 			return ctx.Err()
 		case <-s.stopChan:
-			fmt.Println("[Scheduler] Stop signal received")
+			s.logger.Info("[Scheduler] Stop signal received")
 			s.running.Store(false)
 			return nil
 		case <-ticker.C:
@@ -63,18 +65,18 @@ func (s *SchedulerService) Start(ctx context.Context) error {
 
 			messages, err := s.messageService.GetPendingMessages()
 			if err != nil {
-				fmt.Printf("[Scheduler] Error getting pending messages: %v\n", err)
+				s.logger.Errorf("[Scheduler] Error getting pending messages: %v", err)
 				continue
 			}
 
-			fmt.Printf("[Scheduler] Found %d pending messages\n", len(messages))
+			s.logger.Infof("[Scheduler] Found %d pending messages", len(messages))
 			for _, msg := range messages {
 				if msg.Status != domain.StatusPending {
 					continue
 				}
-				fmt.Printf("[Scheduler] Queueing message ID: %d, Content: %s\n", msg.ID, msg.Content)
+				s.logger.Infof("[Scheduler] Queueing message ID: %d, Content: %s", msg.ID, msg.Content)
 				if err := s.messageService.QueueMessage(msg); err != nil {
-					fmt.Printf("[Scheduler] Error queueing message: %v\n", err)
+					s.logger.Errorf("[Scheduler] Error queueing message: %v", err)
 				}
 			}
 		}
@@ -86,7 +88,7 @@ func (s *SchedulerService) Stop() {
 	defer s.mu.Unlock()
 
 	if s.running.Load() {
-		fmt.Println("[Scheduler] Stopping...")
+		s.logger.Info("[Scheduler] Stopping...")
 		close(s.stopChan)
 		s.running.Store(false)
 	}
