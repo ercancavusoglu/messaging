@@ -36,6 +36,8 @@ services:
       - POSTGRES_DB=messagingdb
     ports:
       - "5432:5432"
+    volumes:
+      - ./internal/infrastructure/persistance/postgres/migrations:/docker-entrypoint-initdb.d
     networks:
       - messaging-network
 
