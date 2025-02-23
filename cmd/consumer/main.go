@@ -3,16 +3,16 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"github.com/ercancavusoglu/messaging/internal/adapters/consumer"
+	"github.com/ercancavusoglu/messaging/internal/adapters/persistance/cache"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/ercancavusoglu/messaging/internal/domain/message"
-	"github.com/ercancavusoglu/messaging/internal/infrastructure/cache"
-	"github.com/ercancavusoglu/messaging/internal/infrastructure/eventbus"
-	"github.com/ercancavusoglu/messaging/internal/infrastructure/persistance/postgres"
-	"github.com/ercancavusoglu/messaging/internal/infrastructure/webhook"
+	"github.com/ercancavusoglu/messaging/internal/adapters/eventbus"
+	"github.com/ercancavusoglu/messaging/internal/adapters/persistance/postgres"
+	"github.com/ercancavusoglu/messaging/internal/adapters/webhook"
 	"github.com/go-redis/redis/v8"
 	_ "github.com/lib/pq"
 )
@@ -46,8 +46,8 @@ func main() {
 	webhookClient := webhook.NewClient("https://webhook.site/ae17c131-349d-410b-8cc5-2f17c823ccca", "INS.me1x9uMcyYGlhKKQVPoc.bO3j9aZwRTOcA2Ywo")
 	cacheClient := cache.NewRedisAdapter(rdb)
 
-	consumer := message.NewConsumer(webhookClient, messageRepo, cacheClient, eventBus, 5)
-	if err := consumer.Start(); err != nil {
+	consumerClient := consumer.NewConsumer(webhookClient, messageRepo, cacheClient, eventBus, 5)
+	if err := consumerClient.Start(); err != nil {
 		log.Fatalf("[Consumer] Failed to start consumer: %v", err)
 	}
 
@@ -59,6 +59,6 @@ func main() {
 	<-sigChan
 
 	fmt.Println("\n[Consumer] Shutting down...")
-	consumer.Stop()
+	consumerClient.Stop()
 	fmt.Println("[Consumer] Shutdown complete")
 }

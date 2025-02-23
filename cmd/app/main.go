@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/ercancavusoglu/messaging/internal/adapters"
+	"github.com/ercancavusoglu/messaging/internal/adapters/http/handlers"
+	"github.com/ercancavusoglu/messaging/internal/adapters/scheduler"
 	"log"
 	"net/http"
 	"os"
@@ -11,14 +14,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ercancavusoglu/messaging/internal/domain/message"
-	"github.com/ercancavusoglu/messaging/internal/domain/scheduler"
-	"github.com/ercancavusoglu/messaging/internal/infrastructure/cache"
-	"github.com/ercancavusoglu/messaging/internal/infrastructure/eventbus"
-	"github.com/ercancavusoglu/messaging/internal/infrastructure/persistance/postgres"
-	"github.com/ercancavusoglu/messaging/internal/infrastructure/webhook"
-	httpRouter "github.com/ercancavusoglu/messaging/internal/interfaces/http"
-	"github.com/ercancavusoglu/messaging/internal/interfaces/http/handlers"
+	"github.com/ercancavusoglu/messaging/internal/adapters/eventbus"
+	"github.com/ercancavusoglu/messaging/internal/adapters/persistance/cache"
+	"github.com/ercancavusoglu/messaging/internal/adapters/persistance/postgres"
+	"github.com/ercancavusoglu/messaging/internal/adapters/webhook"
 	"github.com/go-redis/redis/v8"
 	_ "github.com/lib/pq"
 )
@@ -52,8 +51,8 @@ func main() {
 	webhookClient := webhook.NewClient("https://webhook.site/ae17c131-349d-410b-8cc5-2f17c823ccca", "INS.me1x9uMcyYGlhKKQVPoc.bO3j9aZwRTOcA2Ywo")
 	cacheClient := cache.NewRedisAdapter(rdb)
 
-	messageService := message.NewService(messageRepo, webhookClient, cacheClient, eventBus)
-	messageScheduler := scheduler.NewScheduler(messageService, 2*time.Minute)
+	messageService := adapters.NewMessageService(messageRepo, webhookClient, cacheClient, eventBus)
+	messageScheduler := scheduler.NewSchedulerService(messageService, 2*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {

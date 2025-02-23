@@ -1,0 +1,96 @@
+package adapters
+
+import (
+	"context"
+	"fmt"
+	"github.com/ercancavusoglu/messaging/internal/domain"
+	"github.com/ercancavusoglu/messaging/internal/ports"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+type SchedulerStatus struct {
+	IsRunning bool
+	LastRun   time.Time
+}
+
+type SchedulerService struct {
+	interval       time.Duration
+	messageService *ports.MessageService
+	running        atomic.Bool
+	stopChan       chan struct{}
+	mu             sync.Mutex
+}
+
+func NewSchedulerService(messageService *ports.MessageService, interval time.Duration) *SchedulerService {
+	return &SchedulerService{
+		interval:       interval,
+		messageService: messageService,
+		stopChan:       make(chan struct{}),
+	}
+}
+
+func (s *SchedulerService) Start(ctx context.Context) error {
+	s.mu.Lock()
+	if !s.running.CompareAndSwap(false, true) {
+		s.mu.Unlock()
+		return fmt.Errorf("scheduler is already running")
+	}
+	s.stopChan = make(chan struct{})
+	s.mu.Unlock()
+
+	fmt.Println("[Scheduler] Starting...")
+	ticker := time.NewTicker(s.interval)
+	defer ticker.Stop()
+
+	fmt.Println("[Scheduler] Ticker started")
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("[Scheduler] Stopping due to context cancellation")
+			s.running.Store(false)
+			return ctx.Err()
+		case <-s.stopChan:
+			fmt.Println("[Scheduler] Stop signal received")
+			s.running.Store(false)
+			return nil
+		case <-ticker.C:
+			if !s.running.Load() {
+				continue
+			}
+
+			messages, err := s.messageService.GetPendingMessages()
+			if err != nil {
+				fmt.Printf("[Scheduler] Error getting pending messages: %v\n", err)
+				continue
+			}
+
+			fmt.Printf("[Scheduler] Found %d pending messages\n", len(messages))
+			for _, msg := range messages {
+				if msg.Status != domain.StatusPending {
+					continue
+				}
+				fmt.Printf("[Scheduler] Queueing message ID: %d, Content: %s\n", msg.ID, msg.Content)
+				if err := s.messageService.QueueMessage(msg); err != nil {
+					fmt.Printf("[Scheduler] Error queueing message: %v\n", err)
+				}
+			}
+		}
+	}
+}
+
+func (s *SchedulerService) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.running.Load() {
+		fmt.Println("[Scheduler] Stopping...")
+		close(s.stopChan)
+		s.running.Store(false)
+	}
+}
+
+func (s *SchedulerService) IsRunning() bool {
+	return s.running.Load()
+}
