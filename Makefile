@@ -5,9 +5,9 @@ start:
 	go run cmd/app/main.go
 
 hot:
-	@echo Starting project with local air mode
-	go install github.com/cosmtrek/air@v1.49.0
-	air
+	@echo "Starting project with local air mode"
+	@go install github.com/cosmtrek/air@v1.49.0
+	@air
 
 dev:
 	@echo Starting dev docker compose
@@ -32,3 +32,9 @@ tidy:
 run-linter:
 	@echo Starting linters
 	golangci-lint run ./...
+
+.PHONY: consumer
+
+consumer:
+	@echo "Starting consumer..."
+	@go run cmd/consumer/main.go

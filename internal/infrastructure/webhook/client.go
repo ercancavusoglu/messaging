@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 
 	"github.com/ercancavusoglu/messaging/internal/domain/message"
-	"github.com/ercancavusoglu/messaging/pkg/logger"
 )
 
 type Client struct {
@@ -22,53 +23,55 @@ func NewClient(url, apiKey string) *Client {
 	}
 }
 
-type webhookRequest struct {
-	To      string `json:"to"`
-	Content string `json:"content"`
-}
-
 func (c *Client) SendMessage(to, content string) (*message.WebhookResponse, error) {
-	payload := webhookRequest{
-		To:      to,
-		Content: content,
+	log.Printf("[Webhook] Sending message [to: %s, content: %s]", to, content)
+
+	payload := map[string]string{
+		"to":      to,
+		"content": content,
 	}
 
-	logger.Info("Sending message to webhook", "to", to, "content", content)
-
-	jsonData, err := json.Marshal(payload)
+	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
-		logger.Error("Error marshaling request", "error", err)
-		return nil, fmt.Errorf("error marshaling request: %v", err)
+		return nil, fmt.Errorf("failed to marshal payload: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", c.url, bytes.NewBuffer(jsonData))
+	log.Printf("[Webhook] Request payload: %s", string(jsonPayload))
+
+	req, err := http.NewRequest("POST", c.url, bytes.NewBuffer(jsonPayload))
 	if err != nil {
-		logger.Error("Error creating request", "error", err)
-		return nil, fmt.Errorf("error creating request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-ins-auth-key", c.apiKey)
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	log.Printf("[Webhook] Sending request to: %s", c.url)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		logger.Error("Error sending request", "error", err)
-		return nil, fmt.Errorf("error sending request: %v", err)
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusAccepted {
+	log.Printf("[Webhook] Response status: %d", resp.StatusCode)
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+	log.Printf("[Webhook] Response body: %s", string(bodyBytes))
+
 	var response message.WebhookResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		logger.Error("Error decoding response", "error", err)
-		return nil, fmt.Errorf("error decoding response: %v", err)
+	if err := json.Unmarshal(bodyBytes, &response); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
-	logger.Info("Message sent successfully", "messageId", response.MessageID)
-
+	log.Printf("[Webhook] Decoded response: %+v", response)
 	return &response, nil
 }
