@@ -1,13 +1,14 @@
-package adapters
+package scheduler
 
 import (
 	"context"
 	"fmt"
 	"github.com/ercancavusoglu/messaging/internal/domain"
-	"github.com/ercancavusoglu/messaging/internal/ports"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ercancavusoglu/messaging/internal/ports"
 )
 
 type SchedulerStatus struct {
@@ -16,17 +17,17 @@ type SchedulerStatus struct {
 }
 
 type SchedulerService struct {
+	messageService ports.MessageService
 	interval       time.Duration
-	messageService *ports.MessageService
 	running        atomic.Bool
 	stopChan       chan struct{}
 	mu             sync.Mutex
 }
 
-func NewSchedulerService(messageService *ports.MessageService, interval time.Duration) *SchedulerService {
+func NewSchedulerService(messageService ports.MessageService, interval time.Duration) *SchedulerService {
 	return &SchedulerService{
-		interval:       interval,
 		messageService: messageService,
+		interval:       interval,
 		stopChan:       make(chan struct{}),
 	}
 }

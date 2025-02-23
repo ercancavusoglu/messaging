@@ -4,15 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/ercancavusoglu/messaging/internal/adapters"
-	"github.com/ercancavusoglu/messaging/internal/adapters/http/handlers"
-	"github.com/ercancavusoglu/messaging/internal/adapters/scheduler"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/ercancavusoglu/messaging/internal/adapters"
+	"github.com/ercancavusoglu/messaging/internal/adapters/scheduler"
 
 	"github.com/ercancavusoglu/messaging/internal/adapters/eventbus"
 	"github.com/ercancavusoglu/messaging/internal/adapters/persistance/cache"
@@ -52,7 +52,7 @@ func main() {
 	cacheClient := cache.NewRedisAdapter(rdb)
 
 	messageService := adapters.NewMessageService(messageRepo, webhookClient, cacheClient, eventBus)
-	messageScheduler := scheduler.NewSchedulerService(messageService, 2*time.Minute)
+	messageScheduler := scheduler.NewSchedulerService(messageService, 2*time.Second)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -62,8 +62,8 @@ func main() {
 	}()
 
 	fmt.Println("[Main] Starting HTTP server...")
-	messageHandler := handlers.NewMessageHandler(messageService, messageScheduler)
-	router := httpRouter.NewRouter(messageHandler)
+	messageHandler := adapters.NewMessageHandler(messageService, messageScheduler)
+	router := adapters.NewRouter(messageHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",

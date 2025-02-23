@@ -4,19 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	"github.com/ercancavusoglu/messaging/internal/adapters/scheduler"
 	"github.com/ercancavusoglu/messaging/internal/ports"
-	"net/http"
 )
 
 type MessageHandler struct {
-	messageService *ports.MessageService
+	messageService ports.MessageService
 	scheduler      *scheduler.SchedulerService
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
 
-func NewMessageHandler(messageService *ports.MessageService, scheduler *scheduler.SchedulerService) *MessageHandler {
+func NewMessageHandler(messageService ports.MessageService, scheduler *scheduler.SchedulerService) *MessageHandler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &MessageHandler{
 		messageService: messageService,
@@ -35,11 +36,13 @@ func (h *MessageHandler) StartScheduler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	fmt.Println("[StartScheduler] Scheduler is not running")
-	go func() {
-		if err := h.scheduler.Start(h.ctx); err != nil {
-			fmt.Printf("[StartScheduler] Error: %v\n", err)
-		}
-	}()
+	if err := h.scheduler.Start(h.ctx); err != nil {
+		fmt.Printf("[StartScheduler] Error: %v\n", err)
+		h.jsonResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
 
 	h.jsonResponse(w, http.StatusOK, map[string]string{
 		"message": "Scheduler started successfully",

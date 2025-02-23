@@ -12,7 +12,7 @@ type messageService struct {
 	eventBus      ports.EventBus
 }
 
-func NewMessageService(repo ports.Repository, webhookClient ports.WebhookClient, cache ports.Cache, eventBus ports.EventBus) *ports.MessageService {
+func NewMessageService(repo ports.Repository, webhookClient ports.WebhookClient, cache ports.Cache, eventBus ports.EventBus) ports.MessageService {
 	return &messageService{
 		repo:          repo,
 		webhookClient: webhookClient,

@@ -1,13 +1,11 @@
 package adapters
 
 import (
-	"github.com/ercancavusoglu/messaging/internal/adapters/handlers"
-	"net/http"
-
 	"github.com/gorilla/mux"
+	"net/http"
 )
 
-func NewRouter(messageHandler *handlers.MessageHandler) http.Handler {
+func NewRouter(messageHandler *MessageHandler) http.Handler {
 	router := mux.NewRouter()
 
 	api := router.PathPrefix("/api/v1").Subrouter()
