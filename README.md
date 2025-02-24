@@ -13,6 +13,8 @@ This project is a messaging service application designed for handling message de
 - **Event-Driven Architecture**: Uses events for loose coupling and better scalability
 - **Test-Driven Development**: Includes unit tests to ensure the correctness of the application
 
+![docs/flow.png](docs%2Fflow.png)
+
 ### Project Structure
 
 ```
@@ -50,6 +52,8 @@ This project is a messaging service application designed for handling message de
 ├── go.sum
 └── README.md
 ```
+
+![docs/hexagonal-architecture.png](docs%2Fhexagonal-architecture.png)
 
 ### Getting Started
 
